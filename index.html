@@ -1,0 +1,513 @@
+<title>InvestorMate Investor Factsheet</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600;700&family=Cal+Sans&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<style>
+  /* Layout: navy slim header; off-white hero (copy | cover | form); white "inside" band; navy closing CTA; quiet footer. */
+  :root {
+    --navy: #0B1432;
+    --navy-2: #16214A;
+    --peach: #F1996A;
+    --peach-hover: #EC8656;
+    --peach-ink: #A8481C;
+    --paper: #FAF6F1;
+    --white: #FFFFFF;
+    --slate: #4B5570;
+    --line: #E3DCD3;
+    --error: #B42318;
+    --error-bg: #FDF1EF;
+    --font-display: 'Cal Sans', 'Atkinson Hyperlegible Next', ui-sans-serif, system-ui, 'Segoe UI', sans-serif;
+    --font-body: 'Atkinson Hyperlegible Next', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    color-scheme: light;
+  }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+  }
+  body {
+    background: var(--paper);
+    color: var(--navy);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    overflow-x: hidden;
+  }
+  /* full-bleed bands cancel the body gutter, and re-apply it inside .wrap */
+  .band { margin-left: calc(-1 * max(16px, env(safe-area-inset-left, 0px))); margin-right: calc(-1 * max(16px, env(safe-area-inset-right, 0px))); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .wrap { width: 100%; max-width: 1200px; margin-inline: auto; }
+  h1, h2, h3, .font-display { font-family: var(--font-display); font-weight: 400; letter-spacing: -0.01em; text-wrap: balance; }
+  .btn:focus-visible, a:focus-visible, button:focus-visible, input:focus-visible, label:focus-within {
+    outline: 3px solid var(--navy); outline-offset: 3px;
+  }
+  .on-navy a:focus-visible, .on-navy button:focus-visible { outline-color: var(--peach); }
+  .field:focus { outline: none; border-color: var(--navy); box-shadow: 0 0 0 3px rgba(241,153,106,.55); }
+  .hero-grid { display: grid; gap: 32px; grid-template-columns: minmax(0,1fr); grid-template-areas: "text" "cover" "form"; }
+  @media (min-width: 1024px) {
+    .hero-grid { grid-template-columns: minmax(0,1fr) 400px; column-gap: 48px; grid-template-areas: "text form" "cover form"; align-items: start; }
+  }
+  @media (min-width: 1200px) {
+    .hero-grid { grid-template-columns: minmax(0,1fr) 270px 390px; column-gap: 36px; grid-template-areas: "text cover form"; }
+  }
+  .a-text { grid-area: text; } .a-cover { grid-area: cover; } .a-form { grid-area: form; }
+  .scroll-target { scroll-margin-top: 88px; }
+</style>
+
+<div id="root"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
+<script>
+  tailwind.config = {
+    theme: { extend: {
+      colors: { navy: 'var(--navy)', 'navy-2': 'var(--navy-2)', peach: 'var(--peach)', 'peach-hover': 'var(--peach-hover)', 'peach-ink': 'var(--peach-ink)', paper: 'var(--paper)', slate: 'var(--slate)', line: 'var(--line)', danger: 'var(--error)', 'danger-bg': 'var(--error-bg)' },
+      fontFamily: { display: ['var(--font-display)'], body: ['var(--font-body)'] },
+    } },
+  };
+</script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useRef, useEffect, useCallback, createContext, useContext } = React;
+
+/* ------------------------------------------------------------------
+   CONFIGURATION — set these before production.
+------------------------------------------------------------------- */
+const CONFIG = {
+  logoSrc: 'https://images.squarespace-cdn.com/content/v1/69f07c94371dad1bcb5022e8/64480857-a0a5-4b88-b2c1-8acb0031f8a4/INVESTOR+MATE+-+new+logos+-+orange-25.png?format=1500w',
+  coverSrc: '',            // TODO: URL or path of the supplied factsheet cover image (exact asset, unaltered)
+  privacyUrl: '',          // TODO: final Privacy Policy URL
+  contactUrl: '',          // TODO: final Contact URL
+  leadEndpoint: '',        // TODO: your form/CRM/API endpoint (see submitLead)
+  leadSource: 'investormate-negative-gearing-factsheet',
+};
+
+/* ------------------------------------------------------------------
+   Validation + lead payload helpers
+------------------------------------------------------------------- */
+const INTENT = {
+  yes: { value: 'yes', label: "Yes, I'm looking to buy an investment property", tag: 'investor_buying' },
+  exploring: { value: 'exploring', label: "I'm exploring property investment options", tag: 'investor_exploring' },
+  home: { value: 'home', label: "No, I'm looking for a home to live in", tag: 'owner_occupier_not_investor' },
+};
+
+const isValidEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim());
+// Accepts 04xx xxx xxx, +61 4xx xxx xxx, 61 4xx xxx xxx, with spaces, dashes, brackets.
+const isValidAuMobile = (v) => {
+  const s = v.replace(/[\s\-().]/g, '');
+  return /^(?:\+?61|0)4\d{8}$/.test(s);
+};
+
+function validate(v) {
+  const e = {};
+  if (!v.firstName.trim()) e.firstName = 'Enter your first name.';
+  if (!v.lastName.trim()) e.lastName = 'Enter your last name.';
+  if (!v.email.trim()) e.email = 'Enter your email address.';
+  else if (!isValidEmail(v.email)) e.email = 'Enter a valid email address, like name@example.com.';
+  if (!v.mobile.trim()) e.mobile = 'Enter your mobile number.';
+  else if (!isValidAuMobile(v.mobile)) e.mobile = 'Enter an Australian mobile number, like 0412 345 678 or +61 412 345 678.';
+  if (!v.intent) e.intent = 'Choose the option that best describes you.';
+  return e;
+}
+
+const newSubmissionId = () => {
+  try { if (window.crypto && crypto.randomUUID) return crypto.randomUUID(); } catch (_) {}
+  return 'sub_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+};
+
+function readUtm() {
+  const keys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+  const out = {};
+  let params = null;
+  try { params = new URLSearchParams(window.location.search); } catch (_) {}
+  keys.forEach((k) => { out[k] = (params && params.get(k)) || null; });
+  return out;
+}
+
+function buildLeadPayload(v) {
+  const intent = INTENT[v.intent];
+  return {
+    submission_id: newSubmissionId(),
+    lead_source: CONFIG.leadSource,
+    ...readUtm(),
+    first_name: v.firstName.trim(),
+    last_name: v.lastName.trim(),
+    email: v.email.trim(),
+    mobile: v.mobile.trim(),
+    qualifying_question: 'Are you considering buying a property for investment purposes?',
+    qualifying_answer: intent.label,
+    lead_tag: intent.tag,
+    marketing_consent: v.marketing === true,
+    marketing_consent_timestamp: v.marketing === true ? new Date().toISOString() : null, // never set when unchecked
+    submitted_at: new Date().toISOString(),
+  };
+}
+
+/* PLACEHOLDER for the real integration. In this preview nothing is sent or stored. */
+async function submitLead(payload) {
+  if (!CONFIG.leadEndpoint) return { demo: true };
+  // PRODUCTION: replace with your endpoint, e.g.
+  // const res = await fetch(CONFIG.leadEndpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  // if (!res.ok) throw new Error('Submission failed');
+  // return res.json();
+  return { demo: true };
+}
+
+/* ------------------------------------------------------------------
+   Shared helpers / context
+------------------------------------------------------------------- */
+const FORM_ID = 'lead-form';
+const FIRST_FIELD_ID = 'firstName';
+
+function scrollToForm() {
+  const el = document.getElementById(FORM_ID);
+  if (!el) return;
+  let reduce = false;
+  try { reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) {}
+  el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+  const first = document.getElementById(FIRST_FIELD_ID) || el;
+  setTimeout(() => { try { first.focus({ preventScroll: true }); } catch (_) { first.focus(); } }, reduce ? 0 : 450);
+}
+
+const CoverCtx = createContext({ src: '', setLocal: () => {} });
+
+/* ------------------------------------------------------------------
+   Components
+------------------------------------------------------------------- */
+function CTAButton({ children, onClick, className = '', type = 'button', disabled = false, ...rest }) {
+  return (
+    <button
+      type={type}
+      onClick={onClick}
+      disabled={disabled}
+      className={'btn inline-flex min-h-[54px] w-full items-center justify-center bg-peach px-6 py-3.5 text-center text-[15px] font-bold uppercase tracking-[0.06em] text-navy transition-colors hover:bg-peach-hover disabled:cursor-not-allowed disabled:bg-line disabled:text-slate sm:w-auto ' + className}
+      {...rest}
+    >
+      {children}
+    </button>
+  );
+}
+
+function PlaceholderLink({ label, url, className = '' }) {
+  const [note, setNote] = useState(false);
+  if (url) return <a href={url} className={'underline underline-offset-4 ' + className}>{label}</a>;
+  return (
+    <span className="inline">
+      <button type="button" onClick={() => setNote((n) => !n)} aria-expanded={note} className={'underline decoration-dashed underline-offset-4 ' + className}>{label}</button>
+      {note && <span role="status" className="ml-2 inline-block bg-paper px-2 py-0.5 text-xs text-navy">Placeholder: {label} URL not configured (CONFIG).</span>}
+    </span>
+  );
+}
+
+function Logo({ onNavy = true }) {
+  const [failed, setFailed] = useState(false);
+  if (failed || !CONFIG.logoSrc) {
+    return (
+      <div className="flex h-10 items-center border border-dashed border-peach px-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-peach" role="img" aria-label="Logo placeholder">
+        Official InvestorMate logo placeholder
+      </div>
+    );
+  }
+  return <img src={CONFIG.logoSrc} alt="InvestorMate" onError={() => setFailed(true)} className="h-9 w-auto max-w-[190px] object-contain object-left sm:h-10 sm:max-w-[240px]" />;
+}
+
+function Header() {
+  return (
+    <header className="band on-navy bg-navy">
+      <div className="wrap flex min-h-[64px] items-center justify-between gap-4 py-3">
+        <Logo />
+        <button type="button" onClick={scrollToForm} className="min-h-[44px] border border-white/40 px-4 text-[13px] font-semibold uppercase tracking-[0.08em] text-white transition-colors hover:border-peach hover:text-peach">
+          Get the factsheet
+        </button>
+      </div>
+    </header>
+  );
+}
+
+function CoverImage({ className = '' }) {
+  const { src } = useContext(CoverCtx);
+  if (src) {
+    return <img src={src} alt="InvestorMate free investor factsheet cover" className={'block h-auto w-full object-contain ' + className} />;
+  }
+  return (
+    <div className={'flex aspect-[3/4] w-full flex-col items-center justify-center gap-3 border-2 border-dashed border-navy bg-white p-6 text-center ' + className} role="img" aria-label="Placeholder for the InvestorMate factsheet cover image">
+      <span className="bg-navy px-2 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-peach">Placeholder</span>
+      <span className="font-display text-xl leading-tight text-navy">Factsheet cover image</span>
+      <span className="max-w-[22ch] text-sm leading-snug text-slate">The supplied cover goes here, unaltered. Not yet uploaded.</span>
+    </div>
+  );
+}
+
+function CoverFrame({ big = false }) {
+  const { src, setLocal } = useContext(CoverCtx);
+  const input = useRef(null);
+  return (
+    <figure className="m-0">
+      <div className="relative mx-auto w-full" style={{ maxWidth: big ? 460 : 340 }}>
+        <div aria-hidden="true" className="absolute inset-0 translate-x-3 translate-y-3 border border-navy/30" style={{ borderColor: 'var(--navy)', opacity: 0.25 }}></div>
+        <div className="relative bg-white shadow-[0_18px_40px_-18px_rgba(11,20,50,0.45)]">
+          <CoverImage />
+        </div>
+      </div>
+      {!CONFIG.coverSrc && (
+        <figcaption className="mx-auto mt-6 max-w-[340px] text-xs leading-relaxed text-slate">
+          Preview only: <input ref={input} type="file" accept="image/*" className="sr-only" id="cover-file" onChange={(e) => {
+            const f = e.target.files && e.target.files[0];
+            if (f) setLocal(URL.createObjectURL(f));
+          }} />
+          <button type="button" onClick={() => input.current && input.current.click()} className="font-semibold text-navy underline underline-offset-4">
+            {src ? 'Choose a different cover file' : 'Load your cover file'}
+          </button>{' '}
+          to see it here. It stays on your device and is not uploaded.
+        </figcaption>
+      )}
+    </figure>
+  );
+}
+
+/* ---------------- Form ---------------- */
+function Field({ id, label, error, hint, children }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={id} className="text-sm font-semibold text-navy">{label}</label>
+      {children}
+      {hint && !error && <p id={id + '-hint'} className="text-xs text-slate">{hint}</p>}
+      {error && <p id={id + '-err'} className="flex gap-1.5 text-sm font-medium text-danger">{error}</p>}
+    </div>
+  );
+}
+
+const inputCls = (err) =>
+  'field min-h-[50px] w-full border bg-white px-3.5 py-2.5 text-base text-navy placeholder:text-slate/60 ' + (err ? 'border-danger bg-danger-bg' : 'border-[#9AA1B5]');
+
+const EMPTY = { firstName: '', lastName: '', email: '', mobile: '', intent: '', marketing: false };
+
+function LeadForm() {
+  const [v, setV] = useState(EMPTY);
+  const [errors, setErrors] = useState({});
+  const [touched, setTouched] = useState({});
+  const [status, setStatus] = useState('idle'); // idle | sending | demo-success
+  const [payloadPreview, setPayloadPreview] = useState(null);
+  const successRef = useRef(null);
+
+  const set = (k, val) => {
+    const next = { ...v, [k]: val };
+    setV(next);
+    if (touched[k] || errors[k]) {
+      const all = validate(next);
+      setErrors((prev) => ({ ...prev, [k]: all[k] }));
+    }
+  };
+  const blur = (k) => { setTouched((t) => ({ ...t, [k]: true })); setErrors((prev) => ({ ...prev, [k]: validate(v)[k] })); };
+  const isHome = v.intent === 'home';
+
+  const onSubmit = async (ev) => {
+    ev.preventDefault();
+    if (isHome) return;
+    const all = validate(v);
+    setErrors(all);
+    setTouched({ firstName: true, lastName: true, email: true, mobile: true, intent: true });
+    const order = ['firstName', 'lastName', 'email', 'mobile', 'intent'];
+    const bad = order.find((k) => all[k]);
+    if (bad) {
+      const target = bad === 'intent' ? document.getElementById('intent-yes') : document.getElementById(bad);
+      if (target) target.focus();
+      return;
+    }
+    setStatus('sending');
+    const payload = buildLeadPayload(v);
+    try { await submitLead(payload); } catch (_) {}
+    // Preview: show the shape of the payload with contact details masked; nothing is stored or transmitted.
+    setPayloadPreview({ ...payload, first_name: '•••', last_name: '•••', email: '•••', mobile: '•••' });
+    setStatus('demo-success');
+    setTimeout(() => successRef.current && successRef.current.focus(), 30);
+  };
+
+  const reset = () => { setV(EMPTY); setErrors({}); setTouched({}); setStatus('idle'); setPayloadPreview(null); setTimeout(scrollToForm, 0); };
+
+  const describe = (id, k) => (errors[k] ? id + '-err' : undefined);
+
+  return (
+    <section id={FORM_ID} aria-labelledby="form-title" className="scroll-target border border-navy bg-white p-5 shadow-[0_24px_50px_-28px_rgba(11,20,50,0.5)] sm:p-7">
+      {status === 'demo-success' ? (
+        <div ref={successRef} tabIndex={-1} role="status" className="outline-none">
+          <p className="inline-block bg-navy px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-peach">Preview only</p>
+          <h2 id="form-title" className="mt-4 text-2xl leading-tight text-navy">Preview only — your form is ready to connect. No SMS or email has been sent.</h2>
+          <p className="mt-3 text-[15px] leading-relaxed text-slate">Nothing you entered was transmitted or stored. This is how the submission would be packaged once a real endpoint is connected (contact details masked here):</p>
+          <details className="mt-4 border border-line bg-paper p-3 text-xs">
+            <summary className="cursor-pointer font-semibold text-navy">View demo lead payload</summary>
+            <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-words text-[12px] leading-relaxed text-navy">{JSON.stringify(payloadPreview, null, 2)}</pre>
+          </details>
+          <button type="button" onClick={reset} className="mt-5 min-h-[48px] border border-navy px-5 text-sm font-semibold uppercase tracking-[0.06em] text-navy hover:bg-paper">Start again</button>
+        </div>
+      ) : (
+        <form onSubmit={onSubmit} noValidate aria-labelledby="form-title" className="flex flex-col gap-4">
+          <div>
+            <h2 id="form-title" className="text-[26px] leading-tight text-navy">Get Your Free Investor Factsheet</h2>
+            <p className="mt-2 text-[15px] leading-relaxed text-slate">Enter your details to receive InvestorMate's free guide to the negative gearing changes for residential investment properties.</p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field id="firstName" label="First name" error={errors.firstName}>
+              <input id="firstName" name="firstName" type="text" autoComplete="given-name" required value={v.firstName} onChange={(e) => set('firstName', e.target.value)} onBlur={() => blur('firstName')} aria-invalid={!!errors.firstName} aria-describedby={describe('firstName', 'firstName')} className={inputCls(errors.firstName)} />
+            </Field>
+            <Field id="lastName" label="Last name" error={errors.lastName}>
+              <input id="lastName" name="lastName" type="text" autoComplete="family-name" required value={v.lastName} onChange={(e) => set('lastName', e.target.value)} onBlur={() => blur('lastName')} aria-invalid={!!errors.lastName} aria-describedby={describe('lastName', 'lastName')} className={inputCls(errors.lastName)} />
+            </Field>
+          </div>
+          <Field id="email" label="Email address" error={errors.email}>
+            <input id="email" name="email" type="email" inputMode="email" autoComplete="email" required value={v.email} onChange={(e) => set('email', e.target.value)} onBlur={() => blur('email')} aria-invalid={!!errors.email} aria-describedby={describe('email', 'email')} className={inputCls(errors.email)} />
+          </Field>
+          <Field id="mobile" label="Mobile number" error={errors.mobile} hint="Australian mobile, for example 0412 345 678 or +61 412 345 678.">
+            <input id="mobile" name="mobile" type="tel" inputMode="tel" autoComplete="tel" required value={v.mobile} onChange={(e) => set('mobile', e.target.value)} onBlur={() => blur('mobile')} aria-invalid={!!errors.mobile} aria-describedby={errors.mobile ? 'mobile-err' : 'mobile-hint'} className={inputCls(errors.mobile)} />
+          </Field>
+
+          <fieldset aria-describedby={errors.intent ? 'intent-err' : undefined} className="m-0 min-w-0 border-0 p-0">
+            <legend className="mb-2 text-sm font-semibold leading-snug text-navy">Are you considering buying a property for investment purposes?</legend>
+            <div className="flex flex-col gap-2">
+              {Object.values(INTENT).map((o, i) => (
+                <label key={o.value} className={'flex min-h-[50px] cursor-pointer items-center gap-3 border px-3.5 py-2.5 text-[15px] leading-snug text-navy ' + (v.intent === o.value ? 'border-navy bg-paper' : errors.intent ? 'border-danger' : 'border-[#9AA1B5]')}>
+                  <input id={'intent-' + o.value} type="radio" name="intent" value={o.value} checked={v.intent === o.value} onChange={() => { set('intent', o.value); setErrors((p) => ({ ...p, intent: undefined })); }} required={i === 0} className="h-5 w-5 shrink-0 accent-[#0B1432]" />
+                  <span>{o.label}</span>
+                </label>
+              ))}
+            </div>
+            {errors.intent && <p id="intent-err" className="mt-1.5 text-sm font-medium text-danger">{errors.intent}</p>}
+          </fieldset>
+
+          {isHome && (
+            <div role="status" className="border-l-4 border-navy bg-paper p-4 text-[15px] leading-relaxed text-navy">
+              <p className="font-semibold">Thanks for your interest.</p>
+              <p className="mt-1 text-slate">This particular guide is designed for property investors considering an established residential property purchase, so it may not be relevant if you're looking for a home to live in. Your details have not been submitted or recorded as an investor enquiry.</p>
+            </div>
+          )}
+
+          <label className="flex cursor-pointer items-start gap-3 text-[13.5px] leading-snug text-slate">
+            <input id="marketing" type="checkbox" checked={v.marketing} onChange={(e) => set('marketing', e.target.checked)} className="mt-0.5 h-5 w-5 shrink-0 accent-[#0B1432]" />
+            <span>I'd also like to receive property investment updates and marketing communications from InvestorMate by SMS and email. I can unsubscribe at any time.</span>
+          </label>
+
+          <div>
+            <CTAButton type="submit" disabled={isHome || status === 'sending'} className="sm:w-full">
+              SEND ME THE FREE FACTSHEET →
+            </CTAButton>
+            <p className="mt-3 text-[13px] leading-snug text-slate">
+              InvestorMate will use your details to send your requested factsheet. Read our <PlaceholderLink label="Privacy Policy" url={CONFIG.privacyUrl} className="text-navy" />.
+            </p>
+          </div>
+        </form>
+      )}
+    </section>
+  );
+}
+
+/* ---------------- Sections ---------------- */
+function Hero() {
+  return (
+    <section className="band bg-paper">
+      <div className="wrap hero-grid py-10 sm:py-14 lg:py-16">
+        <div className="a-text min-w-0">
+          <p className="text-[12.5px] font-bold uppercase tracking-[0.14em] text-peach-ink">FREE FACTSHEET FOR AUSTRALIAN PROPERTY INVESTORS</p>
+          <h1 className="mt-4 text-[36px] leading-[1.06] text-navy sm:text-[46px] lg:text-[44px] xl:text-[42px]">Does an Existing Investment Property Still Stack Up?</h1>
+          <h2 className="mt-5 border-l-[3px] border-peach pl-4 text-[19px] leading-snug text-navy sm:text-[21px]" style={{ fontFamily: 'var(--font-body)', fontWeight: 600, letterSpacing: 0 }}>5 Things Every Property Investor Needs to Know About the Negative Gearing Changes Before Their Next Purchase</h2>
+          <p className="mt-5 text-[17px] font-semibold leading-relaxed text-navy">Considering buying an established property as an investment?</p>
+          <p className="mt-2 max-w-[56ch] text-[17px] leading-relaxed text-slate">Understand the negative gearing changes, how they could affect your next investment, and what to check before you buy.</p>
+          <div className="mt-7">
+            <CTAButton onClick={scrollToForm}>GET MY FREE INVESTOR FACTSHEET →</CTAButton>
+            <p className="mt-3 text-sm text-slate">Free download. Delivered via SMS.</p>
+          </div>
+        </div>
+        <div className="a-cover min-w-0 self-start"><CoverFrame /></div>
+        <div className="a-form min-w-0"><LeadForm /></div>
+      </div>
+    </section>
+  );
+}
+
+const CHECKS = [
+  "What's changing with negative gearing and which investment properties may be affected.",
+  'How existing and new properties differ under the updated tax rules.',
+  'Why cash flow and holding costs matter when assessing your next investment.',
+  'What could still make an established property worth considering for long-term investment.',
+  'The key things to check before buying your next investment property.',
+];
+
+function Check() {
+  return (
+    <span aria-hidden="true" className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-navy">
+      <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="#F1996A" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4.5 10.5l3.6 3.6 7.4-8" /></svg>
+    </span>
+  );
+}
+
+function Inside() {
+  return (
+    <section className="band border-y border-line bg-white" aria-labelledby="inside-title">
+      <div className="wrap grid items-center gap-10 py-14 sm:py-20 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:gap-20">
+        <div className="min-w-0"><CoverFrame big /></div>
+        <div className="min-w-0">
+          <h2 id="inside-title" className="text-[30px] leading-[1.1] text-navy sm:text-[38px]">Inside This Free Factsheet, You'll Discover:</h2>
+          <ul className="mt-8 flex flex-col divide-y divide-line border-y border-line p-0">
+            {CHECKS.map((t) => (
+              <li key={t} className="flex list-none items-start gap-4 py-4 text-[17px] leading-relaxed text-navy">
+                <Check /><span className="min-w-0">{t}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-8"><CTAButton onClick={scrollToForm}>DOWNLOAD THE FREE INVESTOR FACTSHEET →</CTAButton></div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FinalCTA() {
+  return (
+    <section className="band on-navy bg-navy" aria-labelledby="final-title">
+      <div className="wrap py-14 text-center sm:py-20">
+        <h2 id="final-title" className="mx-auto max-w-[24ch] text-[30px] leading-[1.1] text-white sm:text-[40px]">Before Your Next Investment Property Purchase, Get the Facts.</h2>
+        <p className="mx-auto mt-5 max-w-[52ch] text-[17px] leading-relaxed text-white/85">The negative gearing changes could affect the numbers behind your next investment.</p>
+        <p className="mx-auto mt-1 max-w-[52ch] text-[17px] leading-relaxed text-white/85">Know what to consider before buying an established property.</p>
+        <div className="mt-8"><CTAButton onClick={scrollToForm}>GET MY FREE INVESTOR FACTSHEET →</CTAButton></div>
+        <p className="mt-3 text-sm text-white/75">Free download. Delivered via SMS.</p>
+      </div>
+    </section>
+  );
+}
+
+function Footer() {
+  return (
+    <footer className="band bg-paper">
+      <div className="wrap py-10">
+        <p className="max-w-[78ch] text-[13px] leading-relaxed text-slate">This factsheet contains general information only and does not constitute financial, tax, legal or investment advice. Tax rules, investment risks and outcomes depend on individual circumstances. Consider seeking independent professional advice before making an investment decision.</p>
+        <p className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line pt-5 text-sm text-navy">
+          <span className="font-semibold">InvestorMate</span><span aria-hidden="true" className="text-slate">|</span>
+          <PlaceholderLink label="Privacy Policy" url={CONFIG.privacyUrl} className="text-navy" /><span aria-hidden="true" className="text-slate">|</span>
+          <PlaceholderLink label="Contact" url={CONFIG.contactUrl} className="text-navy" />
+        </p>
+      </div>
+    </footer>
+  );
+}
+
+function App() {
+  const [local, setLocal] = useState('');
+  const src = CONFIG.coverSrc || local;
+  return (
+    <CoverCtx.Provider value={{ src, setLocal }}>
+      <Header />
+      <main>
+        <Hero />
+        <Inside />
+        <FinalCTA />
+      </main>
+      <Footer />
+    </CoverCtx.Provider>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
